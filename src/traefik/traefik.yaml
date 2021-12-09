@@ -1,0 +1,20 @@
+﻿api:
+  dashboard: true
+  insecure: true
+serversTransport:
+  insecureSkipVerify: true
+entryPoints:
+  web:
+    address: ":80"
+    forwardedHeaders:
+      insecure: true
+  websecure:
+    address: ":443"
+    forwardedHeaders:
+      insecure: true
+providers:
+  file:
+    directory: "/configs/sites"
+    watch: true
+  docker:
+    endpoint: npipe:////./pipe/docker_engine

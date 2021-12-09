@@ -1,0 +1,52 @@
+version: '3.4'
+
+services:
+  demowebapp:
+    image: ${DOCKER_REGISTRY-}demowebapp
+    build:
+      context: .
+      dockerfile: DemoWebApp\Dockerfile
+    depends_on:
+      - traefikauth
+    networks:
+      - local
+    labels:
+      - "traefik.http.routers.demowebapp.middlewares=traefikauth"
+      - "traefik.http.routers.demowebapp.entrypoints=web"
+      - "traefik.http.routers.demowebapp.tls=true"
+      - "traefik.http.routers.demowebapp.rule=Host(`demo.local`)"
+      - "traefik.http.routers.demowebapp.service=demowebapp"
+      - "traefik.http.services.demowebapp.loadbalancer.server.port=80"
+
+  traefikauth:
+    image: ${DOCKER_REGISTRY-}traefikauth
+    build:
+      context: .
+      dockerfile: TraefikAuthAAD\Dockerfile
+    networks:
+      - local
+    labels:
+      - "traefik.http.middlewares.traefikauth.forwardauth.address=http://traefikauth/auth"
+      - "traefik.http.middlewares.traefikauth.forwardauth.trustForwardHeader=true"
+
+  traefik:
+    image: ${DOCKER_REGISTRY-}traefik:${TAG_ID}
+    container_name: traefik
+    command:
+      - --configFile=/configs/traefik.yaml
+    ports:
+      - 80:80
+      - 443:443
+      - 8080:8080
+    networks:
+      - local
+    volumes:
+    - source: '\\.\pipe\docker_engine'
+      target: '\\.\pipe\docker_engine'
+      type: npipe
+    - '.\traefik:c:\configs'
+
+networks:
+  local:
+    external:
+      name: nat
