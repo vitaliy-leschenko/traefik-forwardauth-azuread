@@ -49,11 +49,9 @@ namespace TraefikAuthAAD
                 if (!string.IsNullOrEmpty(forwardedUri) && forwardedUri.ToLower().StartsWith("/.well-known/callback"))
                 {
                     var jwt = await CreateAuthTokenAsync();
-                    if (jwt != null)
+                    if (!string.IsNullOrEmpty(jwt))
                     {
-                        context.Response.Cookies.Append(cookieName, jwt);
-                        context.Response.Redirect(targetSite);
-                        await context.Response.WriteAsync("KO");
+                        await AuthorizeWebSiteAsync(jwt);
                         handled = true;
                     }
                 }
@@ -63,6 +61,13 @@ namespace TraefikAuthAAD
                     await RedirectToAuthorizeServerAsync();
                 }
             }
+        }
+
+        private async Task AuthorizeWebSiteAsync(string jwt)
+        {
+            context.Response.Cookies.Append(cookieName, jwt);
+            context.Response.Redirect(targetSite);
+            await context.Response.WriteAsync("KO");
         }
 
         private async Task<string?> CreateAuthTokenAsync()
@@ -88,25 +93,24 @@ namespace TraefikAuthAAD
                             var name = jwt.Claims.FirstOrDefault(t => t.Type == "name")?.Value ?? string.Empty;
                             var email = jwt.Claims.FirstOrDefault(t => t.Type == "preferred_username")?.Value ?? string.Empty;
 
-                            var identity = new ClaimsIdentity(new[] {
+                            var now = DateTime.UtcNow;
+                            var claims = new List<Claim> 
+                            {
                                 new Claim(ClaimTypes.NameIdentifier, oid),
                                 new Claim(ClaimTypes.Name, name),
                                 new Claim(ClaimTypes.Email, email)
-                            });
-                            var principal = new ClaimsPrincipal(identity);
-
-                            var now = DateTime.UtcNow;
-
+                            };
+                            var signingCredentials = new SigningCredentials(
+                                authOptions.GetSymmetricSecurityKey(), 
+                                SecurityAlgorithms.HmacSha256);
                             jwt = new JwtSecurityToken(
                                 issuer: authOptions.Issuer,
                                 audience: authOptions.Audience,
                                 notBefore: now,
-                                claims: principal.Claims,
                                 expires: now.AddYears(10),
-                                signingCredentials: new SigningCredentials(authOptions.GetSymmetricSecurityKey(), SecurityAlgorithms.HmacSha256));
-                            var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
-
-                            return encodedJwt;
+                                claims: claims,
+                                signingCredentials: signingCredentials);
+                            return handler.WriteToken(jwt);
                         }
                     }
                 }
